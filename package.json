@@ -1,0 +1,19 @@
+{
+  "name": "kojac-js",
+  "version": "0.0.1",
+  "description": "KOJAC browser ES6 client",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/buzzware/kojac-js.git"
+  },
+  "author": "Gary McGhee <subs@buzzware.com.au> (http://buzzware.com.au)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/buzzware/kojac-js/issues"
+  },
+  "homepage": "https://github.com/buzzware/kojac-js#readme"
+}
