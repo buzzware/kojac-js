@@ -4,7 +4,9 @@
   "description": "KOJAC browser ES6 client",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "watchify src/index.js -o public/js/bundle.js -dv & serve public",
+    "build": "browserify src/index.js -t [ babelify --stage 0 ] | uglifyjs --screw-ie8 -c=dead_code,evaluate,loops,unused > public/js/bundle.js"
   },
   "repository": {
     "type": "git",
@@ -15,5 +17,28 @@
   "bugs": {
     "url": "https://github.com/buzzware/kojac-js/issues"
   },
-  "homepage": "https://github.com/buzzware/kojac-js#readme"
+  "homepage": "https://github.com/buzzware/kojac-js#readme",
+  "dependencies": {
+    "lodash": "^4.15.0",
+    "seamless-immutable": "^6.1.1"
+  },
+  "devDependencies": {
+    "babelify": "^7.3.0",
+    "browserify": "^13.1.0",
+    "serve": "^1.4.0",
+    "uglify-js": "^2.7.1",
+    "watchify": "^3.7.0"
+  },
+  "browserify": {
+    "transform": [
+      [
+        "babelify",
+        {
+          "stage": [
+            0
+          ]
+        }
+      ]
+    ]
+  }
 }
