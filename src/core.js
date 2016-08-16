@@ -1,3 +1,5 @@
+import KojacRequest from "kojac_request";
+
 /**
  * The Kojac core object
  * @class Kojac.Core
@@ -37,24 +39,27 @@
  * });
  *
  */
-Kojac.Core = Kojac.Object.extend({
+export class KojacCore {
 
-		remoteProvider: null,
-		objectFactory: null,
-		cache: null,
-		errorHandler: null,
-		dependentKeys: {},
-		apiVersion: 2,      // set this to 1 for old read() and readRequest()
+	constructor() {
+		this.remoteProvider = null;
+		this.objectFactory = null;
+		this.cache = null;
+		this.errorHandler = null;
+		this.dependentKeys = {};
+		this.apiVersion = 2;      // set this to 1 for old read() and readRequest()
+	}
 
-		newRequest: function(aOptions) {
-			if (!aOptions)
+		newRequest(aOptions) {
+			if (!aOptions) {
 				aOptions = {};
-			aOptions = _.extend(aOptions,{kojac: this});
-			if (!(this.chaining in aOptions)) {
-				aOptions.chaining = this.apiVersion < 2
 			}
-			return new Kojac.Request(aOptions);
-		},
+		aOptions = _.extend(aOptions,{kojac: this});
+			if (!(this.chaining in aOptions)) {
+				aOptions.chaining = this.apiVersion < 2;
+			}
+			return new KojacRequest(aOptions);
+		}
 
 //			var v;
 //			for (var i=0;i<aRequest.ops.length;i++) {
@@ -81,17 +86,19 @@ Kojac.Core = Kojac.Object.extend({
 //				console.log('end of loop');
 //			}
 
-		handleResults: function(aRequest) {
-			if (this.cache.beginPropertyChanges)
+		handleResults(aRequest) {
+			if (this.cache.beginPropertyChanges) {
 				this.cache.beginPropertyChanges();
+			}
 
 			var updatedObjects = [];
 
 			try {
 				for (var i=0;i<aRequest.ops.length;i++) {
 					var op = aRequest.ops[i];
-					if (op.error)
+					if (op.error) {
 						break;
+					}
 
 					for (var key in op.results) {
 						var value = op.results[key];
@@ -102,10 +109,11 @@ Kojac.Core = Kojac.Object.extend({
 									existing.beginPropertyChanges();
 									updatedObjects.push(existing);
 								}
-								if (existing.setProperties)
+								if (existing.setProperties) {
 									existing.setProperties(value);
-								else
-									_.copyProperties(existing,value);
+								} else {
+									_.copyProperties(existing, value);
+								}
 								value = existing;
 							} else {                                                                      // otherwise manufacture
 								if ((op.options.manufacture!==false) && (this.objectFactory)) {
@@ -113,56 +121,65 @@ Kojac.Core = Kojac.Object.extend({
 									var mkey = key;   // use the key from results by default
 									if (key === op.result_key) {  // this is the result key, so may have been renamed
 										var has_dot = op.key.indexOf('.') >= 0; // prefer original key unless it contains a dot
-										if (!has_dot)
+										if (!has_dot) {
 											mkey = op.key;
+										}
 									}
 									value = this.objectFactory.manufacture(value,mkey);
 								}
 							}
 						}
 						op.results[key] = value;
-						if (op.options.cacheResults!==false)
-							this.cache.store(key,value);
+						if (op.options.cacheResults!==false) {
+							this.cache.store(key, value);
+						}
 					}
 				}
 			} finally {
-				for (var i=0;i<updatedObjects.length;i++)
+				for (var i=0;i<updatedObjects.length;i++) {
 					updatedObjects[i].endPropertyChanges();
+				}
 			}
-			if (this.cache.endPropertyChanges)
+			if (this.cache.endPropertyChanges) {
 				this.cache.endPropertyChanges();
-		},
+			}
+		}
 
-		finaliseResponse: function(aRequest) {
+		finaliseResponse(aRequest) {
 			// set convenience properties
 			var results = {};
-			if (!aRequest.error) for (var i=0;i<aRequest.ops.length;i++) {
-				var op = aRequest.ops[i];
-				if (op.error) {
-					if (!aRequest.error)
-						aRequest.error = op.error;
-					break;
+			if (!aRequest.error) {
+				for (var i = 0; i < aRequest.ops.length; i++) {
+					var op = aRequest.ops[i];
+					if (op.error) {
+						if (!aRequest.error) {
+							aRequest.error = op.error;
+						}
+						break;
+					}
+					_.extend(results, op.results);
+					op.result = !op.error && op.results && (op.result_key || op.key) ? op.results[op.result_key || op.key] : null;
+					if (i === 0) {
+						aRequest.op = op;
+					}
+					if ((op.performed === true) && (op.fromCache === false) && (op.options.cacheResults !== false)) {
+						var ex_key = (op.result_key || op.key);
+						var dep_keys = [];
+						for (var p in op.results) {
+							if (p === ex_key) {
+								continue;
+							}
+							dep_keys.push(p);
+						}
+						if (!dep_keys.length) {
+							if (op.key in aRequest.kojac.dependentKeys) {
+								delete aRequest.kojac.dependentKeys[op.key];
+							}
+						} else {
+							aRequest.kojac.dependentKeys[op.key] = dep_keys
+						}
+					}
 				}
-				_.extend(results,op.results);
-				op.result = !op.error && op.results && (op.result_key || op.key) ? op.results[op.result_key || op.key] : null;
-				if (i===0) {
-					aRequest.op = op;
-				}
-		    if ((op.performed===true) && (op.fromCache===false) && (op.options.cacheResults!==false)) {
-			    var ex_key = (op.result_key || op.key);
-			    var dep_keys = [];
-			    for (var p in op.results) {
-				    if (p===ex_key)
-				      continue;
-				    dep_keys.push(p);
-			    }
-			    if (!dep_keys.length) {
-			      if (op.key in aRequest.kojac.dependentKeys)
-			        delete aRequest.kojac.dependentKeys[op.key];
-				  } else {
-		        aRequest.kojac.dependentKeys[op.key] = dep_keys
-			    }
-		    }
 			}
 			if (aRequest.error) {
 				_.removeKey(aRequest,'results');
@@ -171,9 +188,9 @@ Kojac.Core = Kojac.Object.extend({
 				aRequest.results = results;
 				aRequest.result = (aRequest.op && aRequest.op.result);
 			}
-		},
+		}
 
-		performRequest: function(aRequest) {
+		performRequest(aRequest) {
 			for (var i=0;i<aRequest.ops.length;i++) {
 				var op = aRequest.ops[i]
 				op.results = {};
@@ -201,78 +218,84 @@ Kojac.Core = Kojac.Object.extend({
 
 			aRequest.handlers.run(aRequest).always(this.finaliseResponse);
 			return aRequest;
-		},
+		}
 
 		// BEGIN User Functions
 
 		// These functions enable the user to build and trigger requests to the server/remote provider
 
-		chain: function() {
+		chain() {
 			return this.newRequest({chaining: true});
-		},
+		}
 
-		create: function(aKeyValues,aOptions) {
+		create(aKeyValues,aOptions) {
 			var req = this.newRequest();
 			return req.create(aKeyValues,aOptions);
-		},
+		}
 
-		read: function(aKeys,aOptions) {
+		read(aKeys,aOptions) {
 			var req = this.newRequest();
 			return req.read(aKeys,aOptions);
-		},
+		}
 
-		cacheRead: function(aKeys,aOptions) {
+		cacheRead(aKeys,aOptions) {
 			aOptions = _.extend({},aOptions,{preferCache: true});
 			return this.read(aKeys,aOptions);
-		},
+		}
 
-		update: function(aKeyValues,aOptions) {
+		update(aKeyValues,aOptions) {
 			var req = this.newRequest();
 			return req.update(aKeyValues,aOptions);
-		},
+		}
 
-		destroy: function(aKeys,aOptions) {
+		destroy(aKeys,aOptions) {
 			var req = this.newRequest();
 			return req.destroy(aKeys,aOptions);
-		},
+		}
 
-		execute: function(aKey,aValue,aOptions) {
+		execute(aKey,aValue,aOptions) {
 			var req = this.newRequest();
 			return req.execute(aKey,aValue,aOptions);
-		},
+		}
 		// END Convenience Functions
 
 		// BEGIN DEPRECATED API V1 FUNCTIONS
-		createRequest: function(aKeyValues,aOptions) {
-			if (this.apiVersion > 1)
-				throw "*Request methods are deprecated, and only supported when apiVersion is 1";
-			return this.create(aKeyValues,aOptions).request();
-		},
-		readRequest: function(aKeys,aOptions) {
-			if (this.apiVersion > 1)
-				throw "*Request methods are deprecated, and only supported when apiVersion is 1";
-			return this.read(aKeys,aOptions).request();
-		},
-		cacheReadRequest: function(aKeys,aOptions) {
-			if (this.apiVersion > 1)
-				throw "*Request methods are deprecated, and only supported when apiVersion is 1";
-			aOptions = _.extend({},aOptions,{preferCache: true});
-			return this.read(aKeys,aOptions).request();
-		},
-		updateRequest: function(aKeyValues,aOptions) {
-			if (this.apiVersion > 1)
-				throw "*Request methods are deprecated, and only supported when apiVersion is 1";
-			return this.update(aKeyValues,aOptions).request();
-		},
-		destroyRequest: function(aKeys,aOptions) {
-			if (this.apiVersion > 1)
-				throw "*Request methods are deprecated, and only supported when apiVersion is 1";
-			return this.destroy(aKeys,aOptions).request();
-		},
-		executeRequest: function(aKey,aValue,aOptions) {
-			if (this.apiVersion > 1)
-				throw "*Request methods are deprecated, and only supported when apiVersion is 1";
-			return this.execute(aKey,aValue,aOptions).request();
-		}
+		//createRequest(aKeyValues,aOptions) {
+		//	if (this.apiVersion > 1) {
+		//		throw "*Request methods are deprecated, and only supported when apiVersion is 1";
+		//	}
+		//	return this.create(aKeyValues,aOptions).request();
+		//}
+		//readRequest(aKeys,aOptions) {
+		//	if (this.apiVersion > 1) {
+		//		throw "*Request methods are deprecated, and only supported when apiVersion is 1";
+		//	}
+		//	return this.read(aKeys,aOptions).request();
+		//}
+		//cacheReadRequest(aKeys,aOptions) {
+		//	if (this.apiVersion > 1) {
+		//		throw "*Request methods are deprecated, and only supported when apiVersion is 1";
+		//	}
+		//	aOptions = _.extend({},aOptions,{preferCache: true});
+		//	return this.read(aKeys,aOptions).request();
+		//}
+		//updateRequest(aKeyValues,aOptions) {
+		//	if (this.apiVersion > 1) {
+		//		throw "*Request methods are deprecated, and only supported when apiVersion is 1";
+		//	}
+		//	return this.update(aKeyValues,aOptions).request();
+		//}
+		//destroyRequest(aKeys,aOptions) {
+		//	if (this.apiVersion > 1) {
+		//		throw "*Request methods are deprecated, and only supported when apiVersion is 1";
+		//	}
+		//	return this.destroy(aKeys,aOptions).request();
+		//}
+		//executeRequest(aKey,aValue,aOptions) {
+		//	if (this.apiVersion > 1) {
+		//		throw "*Request methods are deprecated, and only supported when apiVersion is 1";
+		//	}
+		//	return this.execute(aKey,aValue,aOptions).request();
+		//}
 		// END DEPRECATED API V1 FUNCTIONS
-});
+}

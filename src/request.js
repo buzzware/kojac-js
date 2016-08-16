@@ -1,20 +1,26 @@
+import _ from "lodash";
+
 /**
  * Represents a single Kojac operation ie. READ, WRITE, UPDATE, DELETE or EXECUTE
  * @class Kojac.Operation
  * @extends Kojac.Object
  */
-Kojac.Operation = Kojac.Object.extend({
-	request: this,
-	verb: null,
-	key: null,
-	value: undefined,
-	results: null,
-	result_key: null,
-	result: undefined,
-	error: null,         // set with some truthy error if this operation fails
-	performed: false,
-	fromCache: null,     // null means not performed, true means got from cache, false means got from server. !!! Should split this into performed and fromCache
-	receiveResult:function (aResponseOp) {
+export class KojacOperation {
+
+	constructor(aRequest) {
+		this.request = aRequest;
+		this.verb = null;
+		this.key = null;
+		this.value = undefined;
+		this.results = null;
+		this.result_key = null;
+		this.result = undefined;
+		this.error = null;      // set with some truthy error if this operation fails
+		this.performed = false;
+		this.fromCache = null;  // null means not performed, true means got from cache, false means got from server. !!! Should split this into performed and fromCache
+	}
+
+	receiveResult(aResponseOp) {
 		if (!aResponseOp) {
 			this.error = "no result";
 		} else if (aResponseOp.error) {
@@ -25,52 +31,60 @@ Kojac.Operation = Kojac.Object.extend({
 			var final_result_key = this.result_key || response_key; // result_key should not be specified unless trying to override
 			var results = _.isObjectStrict(aResponseOp.results) ? aResponseOp.results : _.createObject(response_key,aResponseOp.results); // fix up server mistake
 			var result;
-			if (aResponseOp.verb==='DESTROY')
+			if (aResponseOp.verb==='DESTROY') {
 				result = undefined;
-			else
+			} else {
 				result = results[response_key];
+			}
 
 			results = _.omit(results,response_key); // results now excludes primary result
-			if (!this.results)
+			if (!this.results) {
 				this.results = {};
+			}
 			_.extend(this.results,results);   // store other results
 			this.result_key = final_result_key;
 			this.results[final_result_key] = result;  // store primary result
 		}
 	}
-});
+}
 
 /**
  * Represents a single Kojac request, analogous to a HTTP request. It may contain 1 or more operations
  * @class Kojac.Request
  * @extends Kojac.Object
  */
-Kojac.Request = Kojac.Object.extend({
-		kojac: null,
-		chaining: false,
-		options: {},
-		ops: [],
-		handlers: null,
-		op: null,
+export class KojacRequest {
+
+	//init: function(aProperties) {
+	//	this._super.apply(this,arguments);
+	//},
+
+	constructor() {
+		this.kojac = null;
+		this.chaining = false;
+		this.options = {};
+		this.ops = [];
+		this.handlers = null;
+		this.op = null;
 		//result: undefined,
 		//results: null,
-		error: null,        // set with some truthy value if this whole request or any operation fails (will contain first error if multiple)
-		newOperation: function() {
-			var obj = new Kojac.Operation({request: this});
-			if (this.ops.length===0)
-				this.op = obj;
-			this.ops.push(obj);
-			return obj;
-		},
+		this.error = null;        // set with some truthy value if this whole request or any operation fails (will contain first error if multiple)
+		this.handlers = new HandlerStack();
+	}
 
-		init: function(aProperties) {
-			this._super.apply(this,arguments);
-			this.handlers = new HandlerStack();
-		},
+	newOperation() {
+			var obj = new KojacOperation({request: this});
+			if (this.ops.length===0) {
+				this.op = obj;
+			}
+		this.ops.push(obj);
+			return obj;
+	}
+
 
 		// {key: value} or [{key1: value},{key2: value}] or {key1: value, key2: value}
 		// Can give existing keys with id, and will create a clone in database with a new id
-		create: function(aKeyValues,aOptions) {
+		create(aKeyValues,aOptions) {
 
 			var result_key = (aOptions && _.removeKey(aOptions,'result_key'));
 			var params = (aOptions && _.removeKey(aOptions,'params'));  // extract specific params
@@ -97,11 +111,11 @@ Kojac.Request = Kojac.Object.extend({
 				return this;
 			else
 				return this.request();
-		},
+		}
 
 		// !!! if aKeys is String, split on ',' into an array
 		// known options will be moved from aOptions to op.options; remaining keys will be put into params
-		read: function(aKeys,aOptions) {
+		read(aKeys,aOptions) {
 			var keys = Kojac.Utils.interpretKeys(aKeys);
 			var result_key = (aOptions && _.removeKey(aOptions,'result_key'));  // extract result_key
 			var params = (aOptions && _.removeKey(aOptions,'params'));  // extract specific params
@@ -113,23 +127,25 @@ Kojac.Request = Kojac.Object.extend({
 				op.params = (params && _.clone(params));
 				op.verb = 'READ';
 				op.key = k;
-				if (i===0)
+				if (i===0) {
 					op.result_key = result_key || k;
-				else
+				} else {
 					op.result_key = k;
+				}
 			});
-			if (this.chaining)
+			if (this.chaining) {
 				return this;
-			else
+			} else {
 				return this.request();
-		},
+			}
+		}
 
-		cacheRead: function(aKeys,aOptions) {
+		cacheRead(aKeys,aOptions) {
 			aOptions = _.extend({},aOptions,{preferCache: true});
 			return this.read(aKeys,aOptions);
-		},
+		}
 
-		update: function(aKeyValues,aOptions) {
+		update(aKeyValues,aOptions) {
 			var result_key = (aOptions && _.removeKey(aOptions,'result_key'));
 			var options = _.extend({cacheResults: true, manufacture: true},aOptions || {});
 			var params = (aOptions && _.removeKey(aOptions,'params'));  // extract specific params
@@ -146,18 +162,20 @@ Kojac.Request = Kojac.Object.extend({
 				if (first) {
 					op.result_key = result_key || k;
 					first = false;
-				} else
+				} else {
 					op.result_key = k;
+				}
 				op.value = Kojac.Utils.toJsono(v,op.options);
-			};
-			if (this.chaining)
+			}
+			if (this.chaining) {
 				return this;
-			else
+			} else {
 				return this.request();
-		},
+			}
+		}
 
-		destroy: function(aKeys,aOptions) {
-			var keys = Kojac.Utils.interpretKeys(aKeys);
+		destroy(aKeys,aOptions) {
+			var keys = KojacUtils.interpretKeys(aKeys);
 			var result_key = (aOptions && _.removeKey(aOptions,'result_key'));
 			var options = _.extend({cacheResults: true},aOptions || {});
 			var params = (aOptions && _.removeKey(aOptions,'params'));  // extract specific params
@@ -168,18 +186,20 @@ Kojac.Request = Kojac.Object.extend({
 				op.params = (params && _.clone(params));
 				op.verb = 'DESTROY';
 				op.key = k;
-				if (i===0)
+				if (i===0) {
 					op.result_key = result_key || k;
-				else
+				} else {
 					op.result_key = k;
+				}
 			});
-			if (this.chaining)
+			if (this.chaining) {
 				return this;
-			else
+			} else {
 				return this.request();
-		},
+			}
+		}
 
-		execute: function(aKey,aValue,aOptions) {
+		execute(aKey,aValue,aOptions) {
 			var op = this.newOperation();
 			op.verb = 'EXECUTE';
 
@@ -188,19 +208,22 @@ Kojac.Request = Kojac.Object.extend({
 			op.options = _.extend({cacheResults: false, manufacture: false},aOptions || {});
 			op.params = (params && _.clone(params));
 			op.key = aKey;
-			op.value = Kojac.Utils.toJsono(aValue,op.options);
-			if (this.chaining)
+			op.value = KojacUtils.toJsono(aValue,op.options);
+			if (this.chaining) {
 				return this;
-			else
+			} else {
 				return this.request();
-		},
+			}
+		}
 
-		request: function(aDone) {
+		request(aDone) {
 			var result = this.kojac.performRequest(this);
-			if (aDone)
+			if (aDone) {
 				result = result.done(aDone);
-			if (this.kojac.errorHandler)
+			}
+			if (this.kojac.errorHandler) {
 				result = result.fail(this.kojac.errorHandler);
+			}
 			return result;
 		}
-});
+}
